@@ -1,13 +1,19 @@
 {
-  "name": "spatialreference.org-scraper",
+  "name": "spatialreference-scraper",
   "version": "1.0.0",
   "description": "",
   "main": "index.js",
-  "scripts" : { "start" : "node index.js" } ,
   "dependencies": {
     "cheerio": "^0.22.0",
+    "mkdirp": "^0.5.1",
+    "request": "^2.78.0",
     "sync-request": "^3.0.1"
   },
   "devDependencies": {},
-  "Author": "fabien Del Olmo"
+  "scripts": {
+    "start": "node .",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "author": "",
+  "license": "ISC"
 }

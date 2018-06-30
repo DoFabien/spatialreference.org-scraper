@@ -1,15 +1,27 @@
-var fs = require('fs');
-var request = require('sync-request');
-var cheerio = require('cheerio');
+const fs = require('fs');
+const request = require('sync-request');
+const cheerio = require('cheerio');
+const mkdirp = require('mkdirp');
 
-var projs = [];
-    if (fs.existsSync('./output/projections.json')){
-        projs = JSON.parse(fs.readFileSync("codeSRC.json", "utf8"));
-    }
+//"EPSG:3857"
+const projs = require('./projs.json');
+const outputPath = './output';
+const outputProjs = outputPath + "/projs.json"
+const outputErrors = outputPath + "/errors.json"
 
-var projections = [];
+let projections = [];
+let errors = [];
 
-var errors = [];
+const projFixs = {
+        "EPSG:3857": "SR-ORG:6864",
+        "IGNF:GEOPORTALFXX": "SR-ORG:6882",
+        "IGNF:GEOPORTALGUF": "SR-ORG:6890",
+        "IGNF:GEOPORTALANF": "SR-ORG:6888",
+        "IGNF:GEOPORTALREU": "SR-ORG:6891",
+        "IGNF:GEOPORTALPYF": "SR-ORG:6897",
+        "IGNF:GEOPORTALMYT": "SR-ORG:6892",
+        "IGNF:GEOPORTALNCL": "SR-ORG:6896"
+}
 
 function isInProjection(codeSRC){
     for (var i = 0; i < projections.length; i++){
@@ -20,16 +32,18 @@ function isInProjection(codeSRC){
     return false;
 }
 
-function getJsonProj(codeSRC){ // EPSG:4326
-    var codeUrl = codeSRC.toLowerCase();
-    codeUrl = codeUrl.replace(':','/')
-    
-    var json = {code:'',name:'', wgs84bounds:[], region:'', proj4:'', url:''};
+function getJsonProj(codeSRC){
+    let code = codeSRC;
+    if (projFixs[codeSRC]){
+        code = projFixs[codeSRC];
+    }
+    let codeUrl = code.toLowerCase().replace(':','/');
+
+    let json = {code:'',name:'', wgs84bounds:[], region:'', proj4:'', url:''};
     url = 'http://spatialreference.org/ref/'+codeUrl+'/';
     json.url = url;
     
     var res = request('GET', url);
-    // console.log(res.statusCode);
      if (res.statusCode !== 200) {
          errors.push(JSON.stringify({codeerror: res.statusCode, epsg: codeSRC }));
          return null;
@@ -37,7 +51,7 @@ function getJsonProj(codeSRC){ // EPSG:4326
             var $ = cheerio.load(res.getBody('utf8'));
             $('h1').filter(function(ind){
                 var data = $(this);
-                json.code = data.eq(0).text();
+                json.code = codeSRC //data.eq(0).text();
              
             });
             
@@ -78,33 +92,36 @@ function getJsonProj(codeSRC){ // EPSG:4326
     
 }
 
-    if (fs.existsSync('./output/projections.json')){
-        projections = JSON.parse(fs.readFileSync("./output/projections.json", "utf8"));
+        if (!fs.existsSync(outputPath)){
+            mkdirp.sync(outputPath);
+        }
+
+
+    if (fs.existsSync(outputProjs)){
+        projections = JSON.parse(fs.readFileSync(outputProjs, "utf8"));
     }
+    
 
     for (var i = 0; i< projs.length; i++){
        
         if (!isInProjection(projs[i])){
-            
              var currentProj = getJsonProj(projs[i]);
              if (currentProj && !isInProjection(projs[i])){
-              console.log(projs[i] + ' Scraping... ' + i+1 +"/" + projs.length);
-              //p.push(JSON.stringify(currentProj));
               projections.push(currentProj);
-             } 
-        } else {
-                 console.log( projs[i] + ': déjà present')
+              console.log( projs[i], ' : Nouvelle projection');
              }
+        } else {
+            console.log( projs[i], ' : Déjà dans la sortie');
+        }
+    }
 
-        
-    }
-    
-    var strProj = JSON.stringify(projections)
-   // strProj = strProj.replace('},','},\n')
-    strProj = strProj.replace(/},/g, '},\n')
-    fs.writeFileSync('./output/projections.json', strProj);
-    fs.writeFileSync('./output/errors.json', errors.join(',\n'));
+    const strProj = JSON.stringify(projections).replace(/},/g, '},\n')
+    fs.writeFileSync(outputProjs, strProj);
     if (errors.length > 0){
-        console.log('Errors :')
-            console.log(errors.join(',\n'));
+        console.log('Oups, il y a des erreurs');
+        fs.writeFileSync(outputErrors, errors.join(',\n'));
+    } else {
+        console.log(' :-) ')
     }
+
+    
